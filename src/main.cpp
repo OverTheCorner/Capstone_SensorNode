@@ -3,24 +3,28 @@
 #include <RTClib.h>
 #include <SoftwareSerial.h>
 
-#define NUM_OF_DATA_CHANNELS 11
+#define NUM_OF_DATA_CHANNELS 12
 
-void gsmInit();
+void as7341Init();
+void sim800lInit();
 void sendTextMsg();
 void updateSerial();
 void waitForKey();
 void updateChannelData();
 
+Adafruit_AS7341 as7341;
 SoftwareSerial sim800l(10, 11); // RX, TX pins
-int channelData[NUM_OF_DATA_CHANNELS];
+uint16_t channelData[NUM_OF_DATA_CHANNELS];
 String textMessage;
 
 void setup()
 {
   Serial.begin(9600);
-  gsmInit();
+  as7341Init();
+  sim800lInit();
   waitForKey();
   updateChannelData();
+  waitForKey();
   sendTextMsg();
 }
 
@@ -42,7 +46,25 @@ void updateSerial()
   }
 }
 
-void gsmInit()
+void as7341Init()
+{
+  Serial.println("Intitializing AS7341...");
+  if (!as7341.begin())
+  {
+    Serial.println("Could not find AS7341");
+    while (1)
+    {
+      delay(10);
+    }
+  }
+
+  as7341.setATIME(100);
+  as7341.setASTEP(999);
+  as7341.setGain(AS7341_GAIN_256X);
+  Serial.println("AS7341 Ready to use!\n");
+}
+
+void sim800lInit()
 {
   sim800l.begin(9600);
   delay(1000);
@@ -56,6 +78,7 @@ void gsmInit()
   updateSerial();
   sim800l.println("AT+CREG?"); // Check whether it has registered in the network
   updateSerial();
+  Serial.println("SIM800L ready to use!\n");
 }
 
 void sendTextMsg()
@@ -78,26 +101,35 @@ void sendTextMsg()
   delay(1000);
   sim800l.println((char)26); // End of message character
   delay(1000);
-  Serial.println("Message sent!");
+  Serial.println("Message sent!\n");
 }
 
+/**
+ * @brief Will wait for keyboard input before proceeding
+ *
+ * NOTE: character needs can be anything but the ENTER key
+ *
+ */
 void waitForKey()
 {
   // prompt user for input
+  Serial.read();
   Serial.println("Please enter any character to continue:");
   while (!Serial.available())
   {
-    // wait for user to enter input
+    // j
   }
+  Serial.println("Key pressed! will now proceed with program\n");
   Serial.read(); // read and discard input
-  Serial.println("Key pressed! will now proceed with program");
 }
 
 void updateChannelData()
 {
-  for (int i = 0; i < NUM_OF_DATA_CHANNELS; i++)
+  Serial.println("Updating Channel Data...");
+  if (!as7341.readAllChannels(channelData))
   {
-    channelData[i] = i;
-    Serial.println(channelData[i]);
+    Serial.println("Error reading all channels!");
+    return;
   }
+  Serial.println("Channel Data Updated!\n");
 }
