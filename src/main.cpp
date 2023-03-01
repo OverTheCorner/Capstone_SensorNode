@@ -12,16 +12,6 @@ SoftwareSerial sim800l(10, 11); // RX, TX pins
 void setup()
 {
   Serial.begin(9600);
-  gsmInit();
-
-  // prompt user for input
-  Serial.println("Please enter any character to continue:");
-  while (!Serial.available())
-  {
-    // wait for user to enter input
-  }
-  Serial.read(); // read and discard input
-  Serial.println("Key Pressed!, Program will now enter loop");
 }
 
 void loop()
