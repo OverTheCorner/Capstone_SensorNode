@@ -4,7 +4,11 @@
 #include <SoftwareSerial.h>
 
 #define NUM_OF_DATA_CHANNELS 12
+#define PASSWORD "201900044"
 
+// Central Node number: 9212940431
+
+void ds3231Init();
 void as7341Init();
 void sim800lInit();
 void sendTextMsg();
@@ -12,14 +16,19 @@ void updateSerial();
 void waitForKey();
 void updateChannelData();
 
+RTC_DS3231 rtc;
 Adafruit_AS7341 as7341;
 SoftwareSerial sim800l(10, 11); // RX, TX pins
 uint16_t channelData[NUM_OF_DATA_CHANNELS];
 String textMessage;
+DateTime logDate;
 
 void setup()
 {
   Serial.begin(9600);
+  Wire.begin();
+  ds3231Init();
+
   as7341Init();
   sim800lInit();
   waitForKey();
@@ -43,6 +52,23 @@ void updateSerial()
   while (sim800l.available())
   {
     Serial.write(sim800l.read()); // Forward what Software Serial received to Serial Port
+  }
+}
+
+void ds3231Init()
+{
+  rtc.begin();
+  if (!rtc.begin())
+  {
+    Serial.println("Couldn't find RTC");
+    while (1)
+      ;
+  }
+
+  if (rtc.lostPower())
+  {
+    Serial.println("RTC lost power, lets set the time!");
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   }
 }
 
@@ -83,7 +109,11 @@ void sim800lInit()
 
 void sendTextMsg()
 {
-  textMessage = "201900044\nChannel Data:\n";
+  textMessage = "201900044";
+  textMessage += "\n";
+  logDate = rtc.now();
+  textMessage += String(logDate.day()) + "/" + String(logDate.month()) + "/" + String(logDate.year());
+  textMessage += " " + String(logDate.hour()) + ":" + String(logDate.minute()) + "\n";
 
   for (int i = 0; i < NUM_OF_DATA_CHANNELS; i++)
   {
