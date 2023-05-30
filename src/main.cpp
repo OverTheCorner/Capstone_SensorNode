@@ -2,19 +2,31 @@
 #include <Adafruit_AS7341.h>
 #include <RTClib.h>
 #include <SoftwareSerial.h>
+#include <LowPower.h>
 
 #define NUM_OF_DATA_CHANNELS 12
 #define PASSWORD "201900044"
+#define PUMP_PIN 8
+#define VALVE_PIN 7
 
 // Central Node number: 9212940431
 
+void relayInit();
 void ds3231Init();
 void as7341Init();
 void sim800lInit();
+void turnOnPump();
+void turnOffPump();
+void openValve();
+void closeValve();
 void sendTextMsg();
 void updateSerial();
 void waitForKey();
 void updateChannelData();
+void printChannelData();
+void sim800lSleep();
+void sim800lWake();
+void arduinoSleep();
 
 RTC_DS3231 rtc;
 Adafruit_AS7341 as7341;
@@ -27,19 +39,39 @@ void setup()
 {
   Serial.begin(9600);
   Wire.begin();
-  ds3231Init();
-
-  as7341Init();
-  sim800lInit();
-  waitForKey();
-  updateChannelData();
-  waitForKey();
-  sendTextMsg();
+  relayInit();
+  // ds3231Init();
+  // as7341Init();
+  // sim800lInit();
+  // waitForKey();
+  // updateChannelData();
+  // waitForKey();
+  // sendTextMsg();
 }
 
 void loop()
 {
-  // Empty loop
+  // waitForKey();
+  // closeValve();
+  // delay(1000);
+  // turnOnPump();
+  // delay(3000);
+  // turnOffPump();
+  // openValve();
+  // waitForKey();
+  // sim800lSleep();
+  waitForKey();
+  arduinoSleep();
+  Serial.println("Arduino awake!");
+  delay(1000);
+}
+
+void relayInit()
+{
+  pinMode(PUMP_PIN, OUTPUT);
+  pinMode(VALVE_PIN, OUTPUT);
+  digitalWrite(PUMP_PIN, HIGH);
+  digitalWrite(VALVE_PIN, HIGH);
 }
 
 void updateSerial()
@@ -107,6 +139,30 @@ void sim800lInit()
   Serial.println("SIM800L ready to use!\n");
 }
 
+void turnOnPump()
+{
+  Serial.println("PUMP ON...");
+  digitalWrite(PUMP_PIN, LOW);
+}
+
+void turnOffPump()
+{
+  Serial.println("PUMP OFF...");
+  digitalWrite(PUMP_PIN, HIGH);
+}
+
+void openValve()
+{
+  Serial.println("VALVE OPEN...");
+  digitalWrite(VALVE_PIN, HIGH);
+}
+
+void closeValve()
+{
+  Serial.println("VALVE CLOSE...");
+  digitalWrite(VALVE_PIN, LOW);
+}
+
 void sendTextMsg()
 {
   textMessage = "201900044";
@@ -162,4 +218,41 @@ void updateChannelData()
     return;
   }
   Serial.println("Channel Data Updated!\n");
+}
+
+void printChannelData()
+{
+  Serial.println("Channel Data:");
+  for (int i = 0; i < NUM_OF_DATA_CHANNELS; i++)
+  {
+    Serial.println(channelData[i]);
+  }
+  Serial.println("End of Channel Data");
+}
+
+void sim800lSleep()
+{
+  Serial.println("SIM800L going to sleep...");
+  sim800l.println("AT+CSCLK=2");
+  updateSerial();
+  Serial.println("SIM800L in sleep mode!");
+}
+
+void sim800lWake()
+{
+  Serial.println("SIM800L waking up...");
+  sim800l.println("AT");
+  delay(100);
+  sim800l.println("AT+CSCLK=0");
+  updateSerial();
+  delay(100);
+  sim800l.println("AT+CSCLK?");
+  updateSerial();
+  Serial.println("SIM800L is awake!");
+}
+
+void arduinoSleep()
+{
+  Serial.println("Arduino going to sleep...");
+  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
 }
