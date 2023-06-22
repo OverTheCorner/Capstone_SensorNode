@@ -8,30 +8,39 @@
 #define PASSWORD "201900044"
 #define PUMP_PIN 8
 #define VALVE_PIN 7
+#define LED_PIN 6
 
 // Central Node number: 9212940431
 
 void relayInit();
+void lightInit();
 void ds3231Init();
 void as7341Init();
 void sim800lInit();
+void turnOnLight();
+void turnOffLight();
 void turnOnPump();
 void turnOffPump();
 void openValve();
 void closeValve();
 void sendTextMsg();
+void sendTextMsgDiag();
 void updateSerial();
 void waitForKey();
 void updateChannelData();
 void printChannelData();
 void sim800lSleep();
 void sim800lWake();
+void arduinoSleep8s();
 void arduinoSleep();
+void wakeUp();
 
 RTC_DS3231 rtc;
 Adafruit_AS7341 as7341;
 SoftwareSerial sim800l(10, 11); // RX, TX pins
 uint16_t channelData[NUM_OF_DATA_CHANNELS];
+uint32_t channelDataTrans[NUM_OF_DATA_CHANNELS];
+const uint32_t channelDataCalibration[12] = {6851, 46280, 20084, 39885, 65535, 4833, 43839, 34348, 24470, 10555, 65535, 4833};
 String textMessage;
 DateTime logDate;
 
@@ -40,9 +49,10 @@ void setup()
   Serial.begin(9600);
   Wire.begin();
   relayInit();
-  // ds3231Init();
-  // as7341Init();
-  // sim800lInit();
+  lightInit();
+  ds3231Init();
+  as7341Init();
+  sim800lInit();
   // waitForKey();
   // updateChannelData();
   // waitForKey();
@@ -51,18 +61,40 @@ void setup()
 
 void loop()
 {
-  // waitForKey();
-  // closeValve();
-  // delay(1000);
-  // turnOnPump();
-  // delay(3000);
-  // turnOffPump();
-  // openValve();
-  // waitForKey();
-  // sim800lSleep();
-  waitForKey();
+  // Collect Sample
+  closeValve();
+  delay(1000);
+  turnOnPump();
+  delay(3000);
+  turnOffPump();
+
+  // Scan Sample
+  turnOnLight();
+  delay(1000);
+  updateChannelData();
+  delay(1000);
+  turnOffLight();
+
+  // Send Text Message
+  printChannelData();
+  sim800lInit();
+  sendTextMsg();
+  delay(5000);
+  sendTextMsgDiag();
+
+  // release sample
+  openValve();
+
+  // Enter Sleep Mode
+  turnOffLight();
+  turnOffPump();
+  sim800lSleep();
+  delay(1000);
   arduinoSleep();
+
+  // Wake Up
   Serial.println("Arduino awake!");
+  sim800lWake();
   delay(1000);
 }
 
@@ -72,6 +104,11 @@ void relayInit()
   pinMode(VALVE_PIN, OUTPUT);
   digitalWrite(PUMP_PIN, HIGH);
   digitalWrite(VALVE_PIN, HIGH);
+}
+
+void lightInit()
+{
+  pinMode(LED_PIN, OUTPUT);
 }
 
 void updateSerial()
@@ -139,6 +176,16 @@ void sim800lInit()
   Serial.println("SIM800L ready to use!\n");
 }
 
+void turnOnLight()
+{
+  digitalWrite(LED_PIN, HIGH);
+}
+
+void turnOffLight()
+{
+  digitalWrite(LED_PIN, LOW);
+}
+
 void turnOnPump()
 {
   Serial.println("PUMP ON...");
@@ -165,7 +212,7 @@ void closeValve()
 
 void sendTextMsg()
 {
-  textMessage = "201900044";
+  textMessage = "201900046";
   textMessage += "\n";
   logDate = rtc.now();
   textMessage += String(logDate.day()) + "/" + String(logDate.month()) + "/" + String(logDate.year());
@@ -173,7 +220,35 @@ void sendTextMsg()
 
   for (int i = 0; i < NUM_OF_DATA_CHANNELS; i++)
   {
-    textMessage += String(channelData[i]);
+    textMessage += String(channelDataTrans[i]);
+    textMessage += ",";
+  }
+  textMessage += "\n";
+
+  Serial.println("Will now proceed to send a text message...");
+  sim800l.println("AT+CMGF=1"); // Set SMS text mode
+  delay(1000);
+  sim800l.println("AT+CMGS=\"+639194253489\""); // Replace with your phone number
+  delay(1000);
+  sim800l.println(textMessage); // SMS message
+  delay(1000);
+  sim800l.println((char)26); // End of message character
+  delay(1000);
+  Serial.println("Message sent!\n");
+}
+
+void sendTextMsgDiag()
+{
+  Serial.println("Sending text to Diagnostic center...");
+  textMessage = "201900046";
+  textMessage += "\n";
+  logDate = rtc.now();
+  textMessage += String(logDate.day()) + "/" + String(logDate.month()) + "/" + String(logDate.year());
+  textMessage += " " + String(logDate.hour()) + ":" + String(logDate.minute()) + "\n";
+
+  for (int i = 0; i < NUM_OF_DATA_CHANNELS; i++)
+  {
+    textMessage += String(channelDataTrans[i]);
     textMessage += ",";
   }
   textMessage += "\n";
@@ -217,17 +292,22 @@ void updateChannelData()
     Serial.println("Error reading all channels!");
     return;
   }
+  for (int i = 0; i < NUM_OF_DATA_CHANNELS; i++)
+  {
+    channelDataTrans[i] = channelData[i];
+    channelDataTrans[i] = (channelDataTrans[i] * 100) / channelDataCalibration[i];
+  }
   Serial.println("Channel Data Updated!\n");
 }
 
 void printChannelData()
 {
-  Serial.println("Channel Data:");
+  Serial.println("Channel Data Trans:");
   for (int i = 0; i < NUM_OF_DATA_CHANNELS; i++)
   {
-    Serial.println(channelData[i]);
+    Serial.println(channelDataTrans[i]);
   }
-  Serial.println("End of Channel Data");
+  Serial.println("End of Channel Data Trans");
 }
 
 void sim800lSleep()
@@ -251,8 +331,26 @@ void sim800lWake()
   Serial.println("SIM800L is awake!");
 }
 
-void arduinoSleep()
+void arduinoSleep8s()
 {
   Serial.println("Arduino going to sleep...");
   LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+}
+
+void arduinoSleep()
+{
+  Serial.println("Arduino going to sleep...");
+  delay(1000);
+  // Allow wake up pin to trigger interrupt on low.
+  attachInterrupt(digitalPinToInterrupt(2), wakeUp, LOW);
+  // Enter power down state with ADC and BOD module disabled.
+  // Wake up when wake up pin is low.
+  LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
+  // Disable external pin interrupt on wake up pin.
+  detachInterrupt(digitalPinToInterrupt(2));
+}
+
+void wakeUp()
+{
+  Serial.println("Arduino waking up...");
 }
