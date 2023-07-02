@@ -40,7 +40,7 @@ Adafruit_AS7341 as7341;
 SoftwareSerial sim800l(10, 11); // RX, TX pins
 uint16_t channelData[NUM_OF_DATA_CHANNELS];
 uint32_t channelDataTrans[NUM_OF_DATA_CHANNELS];
-const uint32_t channelDataCalibration[12] = {6851, 46280, 20084, 39885, 65535, 4833, 43839, 34348, 24470, 10555, 65535, 4833};
+const uint32_t channelDataCalibration[12] = {6166, 42578, 18477, 36295, 65535, 4543, 41208, 31943, 22575, 9921, 65535, 4543};
 String textMessage;
 DateTime logDate;
 
